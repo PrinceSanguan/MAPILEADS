@@ -24,6 +24,7 @@ export function GlobePanel({ config, className }: GlobePanelProps) {
                 <GoogleGlobe
                     apiKey={config.apiKey}
                     mapId={config.mapId}
+                    autoRotate={false}
                     className="h-full w-full"
                 />
             ) : (

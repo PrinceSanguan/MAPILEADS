@@ -38,6 +38,16 @@ return [
     'google' => [
         'maps_api_key' => env('GOOGLE_MAP_API'),
         'maps_map_id' => env('GOOGLE_MAP_ID'),
+        // Server-side Places API (New) key. Falls back to the maps key, but for
+        // server calls that key must be unrestricted (or IP-restricted) with the
+        // Places API (New) enabled + billing on — a referrer-restricted browser
+        // key is rejected with HTTP 403 when called from PHP.
+        'places_api_key' => env('GOOGLE_PLACES_API_KEY') ?: env('GOOGLE_MAP_API'),
+    ],
+
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
     ],
 
 ];

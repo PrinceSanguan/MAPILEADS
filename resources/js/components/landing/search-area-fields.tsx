@@ -1,5 +1,3 @@
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -9,12 +7,13 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
+import { COUNTRIES, LOCATIONS } from './location-data';
+
 export type SearchArea = {
     country: string;
     region: string;
     province: string;
     city: string;
-    custom: string;
 };
 
 export const EMPTY_SEARCH_AREA: SearchArea = {
@@ -22,27 +21,7 @@ export const EMPTY_SEARCH_AREA: SearchArea = {
     region: '',
     province: '',
     city: '',
-    custom: '',
 };
-
-const COUNTRIES = [
-    'United States',
-    'Canada',
-    'United Kingdom',
-    'Australia',
-    'Philippines',
-    'Germany',
-    'France',
-];
-const REGIONS = ['Northeast', 'Midwest', 'South', 'West'];
-const PROVINCES = [
-    'Entire region',
-    'California',
-    'Texas',
-    'New York',
-    'Florida',
-];
-const CITIES = ['All', 'Los Angeles', 'Houston', 'New York City', 'Miami'];
 
 type SelectFieldProps = {
     label: string;
@@ -50,6 +29,7 @@ type SelectFieldProps = {
     value: string;
     options: string[];
     onValueChange: (value: string) => void;
+    disabled?: boolean;
 };
 
 function SelectField({
@@ -58,14 +38,22 @@ function SelectField({
     value,
     options,
     onValueChange,
+    disabled,
 }: SelectFieldProps) {
     return (
         <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-500">
                 {label}
             </Label>
-            <Select value={value || undefined} onValueChange={onValueChange}>
-                <SelectTrigger className="h-10 w-full rounded-xl border-slate-200 bg-white text-slate-700">
+            <Select
+                value={value || undefined}
+                onValueChange={onValueChange}
+                disabled={disabled}
+            >
+                <SelectTrigger
+                    disabled={disabled}
+                    className="h-10 w-full rounded-xl border-slate-200 bg-white text-slate-700"
+                >
                     <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
                 <SelectContent>
@@ -83,16 +71,13 @@ function SelectField({
 type SearchAreaFieldsProps = {
     value: SearchArea;
     onChange: (next: SearchArea) => void;
-    onClear: () => void;
 };
 
-export function SearchAreaFields({
-    value,
-    onChange,
-    onClear,
-}: SearchAreaFieldsProps) {
-    const patch = (partial: Partial<SearchArea>) =>
-        onChange({ ...value, ...partial });
+export function SearchAreaFields({ value, onChange }: SearchAreaFieldsProps) {
+    const regions = Object.keys(LOCATIONS[value.country] ?? {});
+    const provinces = Object.keys(LOCATIONS[value.country]?.[value.region] ?? {});
+    const cities =
+        LOCATIONS[value.country]?.[value.region]?.[value.province] ?? [];
 
     return (
         <div className="space-y-4">
@@ -102,50 +87,48 @@ export function SearchAreaFields({
                     placeholder="Select country"
                     value={value.country}
                     options={COUNTRIES}
-                    onValueChange={(country) => patch({ country })}
+                    onValueChange={(country) =>
+                        onChange({
+                            ...value,
+                            country,
+                            region: '',
+                            province: '',
+                            city: '',
+                        })
+                    }
                 />
                 <SelectField
                     label="Region"
                     placeholder="Select region"
                     value={value.region}
-                    options={REGIONS}
-                    onValueChange={(region) => patch({ region })}
+                    options={regions}
+                    disabled={regions.length === 0}
+                    onValueChange={(region) =>
+                        onChange({
+                            ...value,
+                            region,
+                            province: '',
+                            city: '',
+                        })
+                    }
                 />
                 <SelectField
                     label="Province"
-                    placeholder="Entire region"
+                    placeholder="Select province"
                     value={value.province}
-                    options={PROVINCES}
-                    onValueChange={(province) => patch({ province })}
+                    options={provinces}
+                    disabled={provinces.length === 0}
+                    onValueChange={(province) =>
+                        onChange({ ...value, province, city: '' })
+                    }
                 />
                 <SelectField
                     label="City"
-                    placeholder="All"
+                    placeholder="Select city"
                     value={value.city}
-                    options={CITIES}
-                    onValueChange={(city) => patch({ city })}
-                />
-            </div>
-
-            <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-500">
-                        Custom area
-                    </Label>
-                    <Button
-                        type="button"
-                        variant="link"
-                        onClick={onClear}
-                        className="h-auto p-0 text-xs font-medium text-teal-600 hover:text-teal-700"
-                    >
-                        Clear all
-                    </Button>
-                </div>
-                <Input
-                    value={value.custom}
-                    onChange={(event) => patch({ custom: event.target.value })}
-                    placeholder="Draw or paste a custom area"
-                    className="h-10 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
+                    options={cities}
+                    disabled={cities.length === 0}
+                    onValueChange={(city) => onChange({ ...value, city })}
                 />
             </div>
         </div>

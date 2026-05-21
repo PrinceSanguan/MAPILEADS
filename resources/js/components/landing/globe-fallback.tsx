@@ -21,9 +21,9 @@ const CONTINENTS: React.CSSProperties = {
 };
 
 /**
- * Dependency-free animated globe used when no Google Maps API key / Map ID is
- * configured (or when the Maps script fails to authenticate). Reads as a stylized
- * Earth slowly spinning in space — no external assets or network required.
+ * Dependency-free globe used when no Google Maps API key / Map ID is configured
+ * (or when the Maps script fails to authenticate). Reads as a stylized static
+ * Earth in space — no external assets or network required.
  */
 export function GlobeFallback({ className }: { className?: string }) {
     return (
@@ -50,12 +50,9 @@ export function GlobeFallback({ className }: { className?: string }) {
                     className="absolute inset-0 overflow-hidden rounded-full shadow-[0_0_70px_rgba(45,212,191,0.25),inset_0_0_60px_rgba(3,12,28,0.6)]"
                     style={OCEAN}
                 >
-                    {/* rotating landmasses */}
+                    {/* landmasses */}
                     <div className="absolute top-1/2 left-1/2 h-[150%] w-[150%] -translate-x-1/2 -translate-y-1/2">
-                        <div
-                            className="h-full w-full animate-[spin_70s_linear_infinite] motion-reduce:animate-none"
-                            style={CONTINENTS}
-                        />
+                        <div className="h-full w-full" style={CONTINENTS} />
                     </div>
 
                     {/* specular highlight */}

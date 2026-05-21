@@ -1,13 +1,9 @@
-import { Check } from 'lucide-react';
-
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
 type QualifiedDataRowProps = {
     title: string;
     description: string;
-    badge: string;
     checked: boolean;
     onCheckedChange: (checked: boolean) => void;
 };
@@ -15,7 +11,6 @@ type QualifiedDataRowProps = {
 export function QualifiedDataRow({
     title,
     description,
-    badge,
     checked,
     onCheckedChange,
 }: QualifiedDataRowProps) {
@@ -38,15 +33,9 @@ export function QualifiedDataRow({
             )}
         >
             <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">
-                        {title}
-                    </span>
-                    <Badge className="gap-1 border-transparent bg-emerald-100 text-[10px] font-semibold text-emerald-700">
-                        <Check className="size-3" />
-                        {badge}
-                    </Badge>
-                </div>
+                <span className="text-sm font-semibold text-slate-900">
+                    {title}
+                </span>
                 <p className="mt-0.5 text-xs text-slate-500">{description}</p>
             </div>
 

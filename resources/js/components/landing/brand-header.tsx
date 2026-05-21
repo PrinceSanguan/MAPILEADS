@@ -15,7 +15,7 @@ export function BrandHeader() {
                     <Globe2 className="size-5" />
                 </span>
                 <span className="text-lg font-semibold tracking-tight text-slate-900">
-                    Mapi<span className="text-teal-600">leads</span>
+                    Choros<span className="text-teal-600">Leads</span>
                 </span>
             </Link>
 

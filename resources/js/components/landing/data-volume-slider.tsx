@@ -12,8 +12,8 @@ export function DataVolumeSlider({
     value,
     onChange,
     min = 10,
-    max = 1000,
-    step = 10,
+    max = 60,
+    step = 5,
 }: DataVolumeSliderProps) {
     return (
         <div className="flex items-center gap-4">

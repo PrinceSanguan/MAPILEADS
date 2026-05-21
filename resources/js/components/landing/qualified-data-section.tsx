@@ -6,25 +6,21 @@ const ITEMS: {
     id: QualifiedDataId;
     title: string;
     description: string;
-    badge: string;
 }[] = [
     {
         id: 'business',
         title: 'Business data',
         description: 'Name, address, landline, website, hours...',
-        badge: '10 FREE businesses',
     },
     {
         id: 'enriched',
         title: 'Enriched data',
         description: 'Personal phone, social media, whatsapp...',
-        badge: '10 FREE businesses',
     },
     {
         id: 'reviews',
         title: 'Smart reviews',
         description: 'Customer reviews, owner responses and AI summary',
-        badge: '10 FREE businesses',
     },
 ];
 
@@ -44,7 +40,6 @@ export function QualifiedDataSection({
                     key={item.id}
                     title={item.title}
                     description={item.description}
-                    badge={item.badge}
                     checked={selected[item.id]}
                     onCheckedChange={(checked) => onToggle(item.id, checked)}
                 />

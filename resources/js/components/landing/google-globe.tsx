@@ -26,7 +26,11 @@ const SPACE_BACKGROUND = '#05060a';
 const STAR_MASK =
     'radial-gradient(circle closest-side at 50% 50%, transparent 0 68%, #000 86%)';
 
-/** Slowly pans the camera eastward so the globe appears to spin; pauses while the user drags. */
+/**
+ * Slowly pans the camera eastward so the globe appears to spin continuously.
+ * Any manual interaction (drag, wheel/zoom, touch) pauses the rotation; it then
+ * resumes automatically from the user's last camera position after a short idle delay.
+ */
 function GlobeSpin({ degreesPerSecond = 4 }: { degreesPerSecond?: number }) {
     const map = useMap();
 
@@ -35,21 +39,41 @@ function GlobeSpin({ degreesPerSecond = 4 }: { degreesPerSecond?: number }) {
             return;
         }
 
+        const RESUME_DELAY_MS = 2500;
+
         let frame = 0;
         let paused = false;
         let last = performance.now();
+        let idleTimer: ReturnType<typeof setTimeout> | undefined;
         const container = map.getDiv();
 
-        const pause = () => {
-            paused = true;
-        };
-        const resume = () => {
-            paused = false;
-            last = performance.now();
+        const clearIdleTimer = () => {
+            if (idleTimer !== undefined) {
+                clearTimeout(idleTimer);
+                idleTimer = undefined;
+            }
         };
 
-        container.addEventListener('pointerdown', pause);
-        window.addEventListener('pointerup', resume);
+        // Resume spinning from wherever the user left the camera, after the idle
+        // delay, resetting the timing reference so the globe doesn't jump.
+        const scheduleResume = () => {
+            clearIdleTimer();
+            idleTimer = setTimeout(() => {
+                paused = false;
+                last = performance.now();
+            }, RESUME_DELAY_MS);
+        };
+
+        // Any manual interaction pauses rotation and (re)arms the idle timer.
+        const onInteract = () => {
+            paused = true;
+            scheduleResume();
+        };
+
+        container.addEventListener('pointerdown', onInteract);
+        container.addEventListener('touchstart', onInteract, { passive: true });
+        container.addEventListener('wheel', onInteract, { passive: true });
+        window.addEventListener('pointerup', onInteract);
 
         const step = (now: number) => {
             const delta = now - last;
@@ -76,8 +100,11 @@ function GlobeSpin({ degreesPerSecond = 4 }: { degreesPerSecond?: number }) {
 
         return () => {
             cancelAnimationFrame(frame);
-            container.removeEventListener('pointerdown', pause);
-            window.removeEventListener('pointerup', resume);
+            clearIdleTimer();
+            container.removeEventListener('pointerdown', onInteract);
+            container.removeEventListener('touchstart', onInteract);
+            container.removeEventListener('wheel', onInteract);
+            window.removeEventListener('pointerup', onInteract);
         };
     }, [map, degreesPerSecond]);
 
