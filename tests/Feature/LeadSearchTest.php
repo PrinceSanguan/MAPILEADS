@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Models\Lead;
+use App\Models\Search;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class LeadSearchTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -17,6 +22,7 @@ class LeadSearchTest extends TestCase
         // skip Inertia's on-disk file-existence check so the backend can be
         // verified independently of the frontend build.
         config()->set('inertia.testing.ensure_pages_exist', false);
+        config()->set('services.google.places_api_key', 'test-key');
     }
 
     /**
@@ -41,13 +47,28 @@ class LeadSearchTest extends TestCase
             'primaryTypeDisplayName' => ['text' => 'Restaurant'],
             'businessStatus' => 'OPERATIONAL',
             'currentOpeningHours' => ['openNow' => true],
+            'reviews' => [[
+                'authorAttribution' => ['displayName' => 'Jane R.'],
+                'rating' => 5,
+                'text' => ['text' => 'Great food and friendly staff.'],
+                'publishTime' => '2024-01-01T00:00:00Z',
+            ]],
         ];
     }
 
-    public function test_leads_page_renders_with_results(): void
+    /**
+     * The X-Goog-FieldMask value can arrive as a single string or an array of
+     * header values depending on the client; read it robustly.
+     */
+    private function fieldMaskValue(\Illuminate\Http\Client\Request $request): string
     {
-        config()->set('services.google.places_api_key', 'test-key');
+        $header = $request->header('X-Goog-FieldMask');
 
+        return is_array($header) ? implode(',', $header) : (string) $header;
+    }
+
+    public function test_search_saves_results_and_redirects(): void
+    {
         Http::fake([
             'places.googleapis.com/*' => Http::response([
                 'places' => [
@@ -55,6 +76,8 @@ class LeadSearchTest extends TestCase
                     $this->rawPlace('ChIJ_test_2', "Maria's Cafe"),
                 ],
             ], 200),
+            // Catch-all so the sync EnrichLeadJob's website fetch is intercepted.
+            '*' => Http::response('<html></html>', 200),
         ]);
 
         $response = $this->get(route('leads.index', [
@@ -63,16 +86,35 @@ class LeadSearchTest extends TestCase
             'volume' => 10,
         ]));
 
+        // Redirect to the saved search's show page.
+        $response->assertRedirect();
+        $this->assertMatchesRegularExpression('#/searches/\d+$#', $response->headers->get('Location'));
+
+        $this->assertDatabaseHas('searches', [
+            'results_count' => 2,
+            'city' => 'Springfield',
+        ]);
+        $this->assertDatabaseCount('leads', 2);
+        $this->assertDatabaseHas('leads', ['place_id' => 'ChIJ_test_1', 'name' => "Joe's Diner"]);
+    }
+
+    public function test_saved_search_show_renders_leads(): void
+    {
+        $search = Search::factory()->create();
+        Lead::factory()->count(2)->for($search)->create();
+
+        $response = $this->get(route('searches.show', $search));
+
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('leads/index')
             ->has('leads', 2)
+            ->has('search')
         );
     }
 
-    public function test_leads_page_empty_when_no_types(): void
+    public function test_search_with_no_types_renders_empty_and_calls_nothing(): void
     {
-        config()->set('services.google.places_api_key', 'test-key');
         // Disable Inertia SSR so the only HTTP traffic that could occur is the
         // Places API call we are asserting does NOT happen.
         config()->set('inertia.ssr.enabled', false);
@@ -87,13 +129,13 @@ class LeadSearchTest extends TestCase
             ->has('leads', 0)
         );
 
+        $this->assertDatabaseCount('searches', 0);
+        $this->assertDatabaseCount('leads', 0);
         Http::assertNothingSent();
     }
 
     public function test_volume_above_max_is_rejected(): void
     {
-        config()->set('services.google.places_api_key', 'test-key');
-
         Http::fake();
 
         $response = $this->get(route('leads.index', [
@@ -103,16 +145,17 @@ class LeadSearchTest extends TestCase
 
         $response->assertStatus(302);
         $response->assertSessionHasErrors('volume');
+
+        $this->assertDatabaseCount('searches', 0);
     }
 
-    public function test_places_request_sends_key_and_field_mask_headers(): void
+    public function test_places_field_mask_always_requests_reviews(): void
     {
-        config()->set('services.google.places_api_key', 'test-key');
-
         Http::fake([
             'places.googleapis.com/*' => Http::response([
                 'places' => [$this->rawPlace()],
             ], 200),
+            '*' => Http::response('<html></html>', 200),
         ]);
 
         $this->get(route('leads.index', [
@@ -121,16 +164,14 @@ class LeadSearchTest extends TestCase
             'volume' => 10,
         ]));
 
-        Http::assertSent(fn ($request) => $request->hasHeader('X-Goog-Api-Key')
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'places:searchText')
             && $request->hasHeader('X-Goog-FieldMask')
-            && str_contains($request->url(), 'places:searchText')
+            && str_contains($this->fieldMaskValue($request), 'places.reviews')
         );
     }
 
-    public function test_places_pagination_aggregates_pages(): void
+    public function test_places_pagination_aggregates_and_saves(): void
     {
-        config()->set('services.google.places_api_key', 'test-key');
-
         $firstPage = [];
         $secondPage = [];
         for ($i = 0; $i < 10; $i++) {
@@ -142,6 +183,7 @@ class LeadSearchTest extends TestCase
             'places.googleapis.com/*' => Http::sequence()
                 ->push(['places' => $firstPage, 'nextPageToken' => 'tok'], 200)
                 ->push(['places' => $secondPage], 200),
+            '*' => Http::response('<html></html>', 200),
         ]);
 
         $response = $this->get(route('leads.index', [
@@ -150,15 +192,16 @@ class LeadSearchTest extends TestCase
             'volume' => 30,
         ]));
 
-        $response->assertOk();
-        // Volume 30 requested, two pages of 10 = 20 leads available (capped by volume).
-        $response->assertInertia(fn (Assert $page) => $page
-            ->component('leads/index')
-            ->has('leads', 20)
-        );
+        $response->assertRedirect();
 
-        Http::assertSent(fn ($r) => isset($r->data()['pageToken'])
-            || str_contains((string) $r->body(), 'pageToken')
+        // Volume 30 requested, two pages of 10 = 20 leads aggregated and saved.
+        $this->assertDatabaseCount('leads', 20);
+        $this->assertDatabaseHas('searches', ['results_count' => 20]);
+
+        // The second page request must carry the pageToken from page one.
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'places:searchText')
+            && (data_get($r->data(), 'pageToken') === 'tok'
+                || str_contains((string) $r->body(), 'pageToken'))
         );
     }
 }

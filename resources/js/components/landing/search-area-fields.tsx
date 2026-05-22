@@ -46,7 +46,7 @@ function SelectField({
                 {label}
             </Label>
             <Select
-                value={value || undefined}
+                value={value}
                 onValueChange={onValueChange}
                 disabled={disabled}
             >

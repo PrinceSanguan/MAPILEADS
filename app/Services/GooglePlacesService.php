@@ -34,7 +34,6 @@ class GooglePlacesService
             throw new RuntimeException('Google Places API key is not configured.');
         }
 
-        $withReviews = (bool) ($filters['reviews'] ?? false);
         $limit = max(1, (int) ($filters['volume'] ?? 10));
         $query = $this->buildTextQuery($filters);
 
@@ -51,7 +50,7 @@ class GooglePlacesService
 
             $response = Http::withHeaders([
                 'X-Goog-Api-Key' => $apiKey,
-                'X-Goog-FieldMask' => $this->fieldMask($withReviews),
+                'X-Goog-FieldMask' => $this->fieldMask(),
                 'Content-Type' => 'application/json',
             ])->post(self::ENDPOINT, $body);
 
@@ -61,7 +60,7 @@ class GooglePlacesService
             }
 
             foreach ($response->json('places', []) as $place) {
-                $leads[] = $this->normalize($place, $withReviews);
+                $leads[] = $this->normalize($place);
 
                 if (count($leads) >= $limit) {
                     return $leads;
@@ -124,7 +123,7 @@ class GooglePlacesService
         return in_array($value, $placeholders, true) ? null : $value;
     }
 
-    private function fieldMask(bool $withReviews): string
+    private function fieldMask(): string
     {
         $fields = [
             'places.id',
@@ -142,12 +141,11 @@ class GooglePlacesService
             'places.primaryTypeDisplayName',
             'places.businessStatus',
             'places.currentOpeningHours.openNow',
+            'places.reviews',
+            'places.regularOpeningHours',
+            'places.editorialSummary',
             'nextPageToken',
         ];
-
-        if ($withReviews) {
-            $fields[] = 'places.reviews';
-        }
 
         return implode(',', $fields);
     }
@@ -158,11 +156,11 @@ class GooglePlacesService
      * @param  array<string, mixed>  $place
      * @return array<string, mixed>
      */
-    private function normalize(array $place, bool $withReviews): array
+    private function normalize(array $place): array
     {
         $reviews = [];
 
-        if ($withReviews && ! empty($place['reviews'])) {
+        if (! empty($place['reviews'])) {
             foreach (array_slice($place['reviews'], 0, 5) as $review) {
                 $reviews[] = [
                     'author' => data_get($review, 'authorAttribution.displayName', 'Anonymous'),
@@ -189,6 +187,8 @@ class GooglePlacesService
             'businessStatus' => data_get($place, 'businessStatus'),
             'openNow' => data_get($place, 'currentOpeningHours.openNow'),
             'reviews' => $reviews,
+            'openingHours' => data_get($place, 'regularOpeningHours.weekdayDescriptions', []),
+            'editorialSummary' => data_get($place, 'editorialSummary.text'),
         ];
     }
 

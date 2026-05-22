@@ -26,32 +26,8 @@ class LeadSearchRequest extends FormRequest
             'region' => ['nullable', 'string', 'max:120'],
             'province' => ['nullable', 'string', 'max:120'],
             'city' => ['nullable', 'string', 'max:120'],
-            'business' => ['sometimes', 'boolean'],
-            'enriched' => ['sometimes', 'boolean'],
-            'reviews' => ['sometimes', 'boolean'],
             'volume' => ['sometimes', 'integer', 'min:10', 'max:60'],
         ];
-    }
-
-    /**
-     * Inertia sends query params as strings; coerce booleans before validation.
-     */
-    protected function prepareForValidation(): void
-    {
-        $this->merge([
-            'business' => $this->toBool($this->input('business'), true),
-            'enriched' => $this->toBool($this->input('enriched'), false),
-            'reviews' => $this->toBool($this->input('reviews'), false),
-        ]);
-    }
-
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if ($value === null) {
-            return $default;
-        }
-
-        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $default;
     }
 
     /**

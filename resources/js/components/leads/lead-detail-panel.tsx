@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import {
     AlertCircle,
     Check,
@@ -7,17 +8,29 @@ import {
     ExternalLink,
     Globe,
     Lightbulb,
+    Link as LinkIcon,
     Mail,
     MapPin,
     Phone,
+    Quote,
     Sparkles,
     Star,
+    Trash2,
     TriangleAlert,
 } from 'lucide-react';
 import * as React from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
 import {
     Select,
     SelectContent,
@@ -30,11 +43,20 @@ import { Spinner } from '@/components/ui/spinner';
 import { postJson } from '@/lib/csrf';
 import { cn } from '@/lib/utils';
 import leadRoutes from '@/routes/leads';
-import type { Lead, LeadAnalysis } from '@/types/leads';
+import type { Lead, LeadAnalysis, LeadEmail } from '@/types/leads';
 import { formatType } from './lead-list';
 
 const TONES = ['Professional', 'Friendly', 'Casual', 'Direct'] as const;
 type Tone = (typeof TONES)[number];
+
+/** Normalizes a persisted tone (any string) back onto the selectable set. */
+function normalizeTone(value: string | null | undefined): Tone {
+    const match = TONES.find(
+        (tone) => tone.toLowerCase() === (value ?? '').toLowerCase(),
+    );
+
+    return match ?? 'Professional';
+}
 
 type AnalysisStatus = 'idle' | 'loading' | 'error';
 
@@ -42,12 +64,6 @@ type AnalysisState = {
     status: AnalysisStatus;
     data: LeadAnalysis | null;
     error: string | null;
-};
-
-const INITIAL_STATE: AnalysisState = {
-    status: 'idle',
-    data: null,
-    error: null,
 };
 
 function ContactRow({
@@ -156,7 +172,7 @@ function CopyButton({
     );
 }
 
-function EmailCard({ email }: { email: LeadAnalysis['email'] }) {
+function EmailCard({ email }: { email: LeadEmail }) {
     const full = `Subject: ${email.subject}\n\n${email.body}`;
 
     return (
@@ -196,6 +212,104 @@ function EmailCard({ email }: { email: LeadAnalysis['email'] }) {
     );
 }
 
+/** Contact details discovered by the enrichment job (socials, emails, hours…). */
+function EnrichmentSection({ lead }: { lead: Lead }) {
+    const socials = lead.socials ?? [];
+    const emails = lead.emails ?? [];
+    const extraPhones = lead.extraPhones ?? [];
+    const openingHours = lead.openingHours ?? [];
+
+    const hasContact =
+        socials.length > 0 || emails.length > 0 || extraPhones.length > 0;
+    const hasAnything =
+        hasContact || openingHours.length > 0 || Boolean(lead.editorialSummary);
+
+    // No enriched contact data and nothing else to show — the job is likely
+    // still running, so surface a tasteful, non-blocking hint.
+    if (!hasAnything) {
+        return (
+            <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3">
+                <p className="text-xs text-slate-500">
+                    Enriching contact details… (refresh in a moment)
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-6 space-y-4">
+            {lead.editorialSummary ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                    <p className="flex gap-2 text-sm text-slate-600 italic">
+                        <Quote className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                        <span>{lead.editorialSummary}</span>
+                    </p>
+                </div>
+            ) : null}
+
+            {hasContact ? (
+                <div>
+                    <h4 className="text-sm font-semibold text-slate-900">
+                        Contact &amp; socials
+                    </h4>
+                    <div className="mt-3 space-y-3">
+                        {emails.map((email) => (
+                            <ContactRow key={email} icon={Mail}>
+                                <a
+                                    href={`mailto:${email}`}
+                                    className="break-all hover:text-emerald-600"
+                                >
+                                    {email}
+                                </a>
+                            </ContactRow>
+                        ))}
+                        {extraPhones.map((extraPhone) => (
+                            <ContactRow key={extraPhone} icon={Phone}>
+                                <a
+                                    href={`tel:${extraPhone}`}
+                                    className="hover:text-emerald-600"
+                                >
+                                    {extraPhone}
+                                </a>
+                            </ContactRow>
+                        ))}
+                        {socials.length > 0 ? (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                {socials.map((social) => (
+                                    <a
+                                        key={social.url}
+                                        href={social.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600"
+                                    >
+                                        <LinkIcon className="size-3.5" />
+                                        {social.label}
+                                    </a>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
+            ) : null}
+
+            {openingHours.length > 0 ? (
+                <div>
+                    <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Clock className="size-4 text-slate-400" />
+                        Opening hours
+                    </h4>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                        {openingHours.map((entry, index) => (
+                            <li key={index}>{entry}</li>
+                        ))}
+                    </ul>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 type LeadDetailPanelProps = {
     lead: Lead;
     className?: string;
@@ -203,15 +317,36 @@ type LeadDetailPanelProps = {
 
 /**
  * Full details for a selected lead plus an on-demand AI analysis (strengths,
- * pain points, review insights and a cold email). Analysis state is keyed per
- * lead so switching selection resets the view; in-flight requests are guarded
- * to survive React StrictMode's double-invoked handlers.
+ * pain points, review insights and a cold email). The parent remounts this
+ * panel via `key={lead.id}` on selection change, so all state below resets
+ * naturally — including initializing from any persisted analysis. In-flight
+ * requests are guarded to survive React StrictMode's double-invoked handlers.
  */
 export function LeadDetailPanel({ lead, className }: LeadDetailPanelProps) {
-    // The parent remounts this panel via `key={lead.placeId}` on selection
-    // change, so all state below resets naturally — no reset effect needed.
-    const [tone, setTone] = React.useState<Tone>('Professional');
-    const [state, setState] = React.useState<AnalysisState>(INITIAL_STATE);
+    const [tone, setTone] = React.useState<Tone>(() =>
+        normalizeTone(lead.aiTone),
+    );
+    // Seed local AI state from any analysis persisted on a previous visit. The
+    // persisted shape only carries strengths/painPoints/reviewInsights; the
+    // cold email lives behind a re-analyze, so default it to empty.
+    const [state, setState] = React.useState<AnalysisState>(() => {
+        const persisted = lead.aiAnalysis;
+
+        if (!persisted) {
+            return { status: 'idle', data: null, error: null };
+        }
+
+        return {
+            status: 'idle',
+            data: {
+                strengths: persisted.strengths ?? [],
+                painPoints: persisted.painPoints ?? [],
+                reviewInsights: persisted.reviewInsights ?? [],
+                email: persisted.email ?? { subject: '', body: '' },
+            },
+            error: null,
+        };
+    });
     const inFlight = React.useRef(false);
 
     const category = lead.types[0] ? formatType(lead.types[0]) : null;
@@ -222,40 +357,32 @@ export function LeadDetailPanel({ lead, className }: LeadDetailPanelProps) {
         }
 
         inFlight.current = true;
-        setState({ status: 'loading', data: null, error: null });
+        setState((prev) => ({ ...prev, status: 'loading', error: null }));
 
         try {
             const data = await postJson<LeadAnalysis>(
-                leadRoutes.analyze.url({ placeId: lead.placeId }),
-                {
-                    name: lead.name,
-                    address: lead.address,
-                    website: lead.website,
-                    phone: lead.phone,
-                    rating: lead.rating,
-                    reviewCount: lead.reviewCount,
-                    types: lead.types,
-                    reviews: lead.reviews ?? [],
-                    tone,
-                },
+                leadRoutes.analyze.url({ lead: lead.id }),
+                { tone },
             );
 
             setState({ status: 'idle', data, error: null });
         } catch (error) {
-            setState({
+            setState((prev) => ({
                 status: 'error',
-                data: null,
+                data: prev.data,
                 error:
                     error instanceof Error
                         ? error.message
                         : 'Something went wrong. Please try again.',
-            });
+            }));
         } finally {
             inFlight.current = false;
         }
     };
 
     const loading = state.status === 'loading';
+    const email = state.data?.email;
+    const hasEmail = Boolean(email?.subject || email?.body);
 
     return (
         <div className={cn('flex flex-col gap-6 lg:flex-row', className)}>
@@ -299,9 +426,51 @@ export function LeadDetailPanel({ lead, className }: LeadDetailPanelProps) {
                     ) : null}
                 </div>
 
-                <h2 className="mt-3 text-xl font-bold text-slate-900">
-                    {lead.name}
-                </h2>
+                <div className="mt-3 flex items-start justify-between gap-3">
+                    <h2 className="text-xl font-bold text-slate-900">
+                        {lead.name}
+                    </h2>
+
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            >
+                                <Trash2 className="size-4" />
+                                Remove
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogTitle>Remove this business?</DialogTitle>
+                            <DialogDescription>
+                                {lead.name} will be removed from this saved
+                                search. This cannot be undone.
+                            </DialogDescription>
+                            <DialogFooter className="gap-2">
+                                <DialogClose asChild>
+                                    <Button variant="secondary">Cancel</Button>
+                                </DialogClose>
+                                <Button
+                                    variant="destructive"
+                                    onClick={() =>
+                                        router.delete(
+                                            leadRoutes.destroy.url({
+                                                lead: lead.id,
+                                            }),
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                >
+                                    <Trash2 className="size-4" />
+                                    Remove business
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
 
                 <div className="mt-4 space-y-3">
                     {lead.address ? (
@@ -342,6 +511,8 @@ export function LeadDetailPanel({ lead, className }: LeadDetailPanelProps) {
                         </ContactRow>
                     ) : null}
                 </div>
+
+                <EnrichmentSection lead={lead} />
 
                 {lead.reviews && lead.reviews.length > 0 ? (
                     <div className="mt-6">
@@ -490,7 +661,14 @@ export function LeadDetailPanel({ lead, className }: LeadDetailPanelProps) {
                                 />
                             </div>
 
-                            <EmailCard email={state.data.email} />
+                            {email && hasEmail ? (
+                                <EmailCard email={email} />
+                            ) : (
+                                <p className="text-sm text-slate-500">
+                                    Re-analyze to generate a fresh cold email
+                                    for this business.
+                                </p>
+                            )}
                         </div>
                     ) : null}
                 </div>

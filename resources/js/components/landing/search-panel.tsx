@@ -7,8 +7,6 @@ import leads from '@/routes/leads';
 import { BusinessTypesField } from './business-types-field';
 import { DataVolumeSlider } from './data-volume-slider';
 import { GradientCard } from './gradient-card';
-import { QualifiedDataSection } from './qualified-data-section';
-import type { QualifiedDataId } from './qualified-data-section';
 import { EMPTY_SEARCH_AREA, SearchAreaFields } from './search-area-fields';
 import type { SearchArea } from './search-area-fields';
 import { SectionLabel } from './section-label';
@@ -34,13 +32,6 @@ export function SearchPanel() {
         'Cafes',
     ]);
     const [area, setArea] = React.useState<SearchArea>(EMPTY_SEARCH_AREA);
-    const [qualified, setQualified] = React.useState<
-        Record<QualifiedDataId, boolean>
-    >({
-        business: true,
-        enriched: false,
-        reviews: false,
-    });
     const [volume, setVolume] = React.useState(10);
     const [loading, setLoading] = React.useState(false);
 
@@ -53,9 +44,6 @@ export function SearchPanel() {
                 region: area.region,
                 province: area.province,
                 city: area.city,
-                business: qualified.business,
-                enriched: qualified.enriched,
-                reviews: qualified.reviews,
                 volume,
             },
             {
@@ -77,17 +65,6 @@ export function SearchPanel() {
             <Section label="Search area">
                 <GradientCard innerClassName="p-4">
                     <SearchAreaFields value={area} onChange={setArea} />
-                </GradientCard>
-            </Section>
-
-            <Section label="Qualified data">
-                <GradientCard innerClassName="p-3">
-                    <QualifiedDataSection
-                        selected={qualified}
-                        onToggle={(id, checked) =>
-                            setQualified((prev) => ({ ...prev, [id]: checked }))
-                        }
-                    />
                 </GradientCard>
             </Section>
 

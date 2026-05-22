@@ -1,16 +1,34 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertTriangle, Download, Globe2, Plus, SearchX } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import {
+    AlertTriangle,
+    Download,
+    Globe2,
+    History,
+    Plus,
+    SearchX,
+    Trash2,
+} from 'lucide-react';
 import * as React from 'react';
 
 import { LeadDetailPanel } from '@/components/leads/lead-detail-panel';
 import { LeadList, formatType } from '@/components/leads/lead-list';
 import { LeadsMap } from '@/components/leads/leads-map';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import type { Lead, LeadFilters } from '@/types/leads';
+import searches from '@/routes/searches';
+import type { Lead, SavedSearch } from '@/types/leads';
 
 interface LeadsPageProps {
-    filters: LeadFilters;
+    search: SavedSearch | null;
     leads: Lead[];
     error: string | null;
 }
@@ -67,22 +85,6 @@ function exportLeadsCsv(leads: Lead[]) {
     URL.revokeObjectURL(url);
 }
 
-/** A human-readable summary of where the search was run. */
-function buildLocationLabel(filters: LeadFilters): string {
-    const parts = [
-        filters.city,
-        filters.province,
-        filters.region,
-        filters.country,
-    ].filter((part): part is string => Boolean(part && part.trim()));
-
-    if (parts.length > 0) {
-        return parts.join(', ');
-    }
-
-    return 'your selected area';
-}
-
 function NewSearchLink({ className }: { className?: string }) {
     return (
         <Button
@@ -99,7 +101,66 @@ function NewSearchLink({ className }: { className?: string }) {
     );
 }
 
-export default function LeadsIndex({ filters, leads, error }: LeadsPageProps) {
+function HistoryLink({ className }: { className?: string }) {
+    return (
+        <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className={cn('border-slate-200 bg-white text-slate-700', className)}
+        >
+            <Link href={searches.index.url()}>
+                <History className="size-4" />
+                History
+            </Link>
+        </Button>
+    );
+}
+
+function DeleteSearchDialog({ search }: { search: SavedSearch }) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-rose-200 bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                >
+                    <Trash2 className="size-4" />
+                    Delete search
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogTitle>Delete this saved search?</DialogTitle>
+                <DialogDescription>
+                    {search.label} and all {search.count.toLocaleString()} of its
+                    captured businesses will be permanently removed. This cannot
+                    be undone.
+                </DialogDescription>
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Button variant="secondary">Cancel</Button>
+                    </DialogClose>
+                    <Button
+                        variant="destructive"
+                        onClick={() =>
+                            router.delete(
+                                searches.destroy.url({ search: search.id }),
+                                { preserveScroll: false },
+                            )
+                        }
+                    >
+                        <Trash2 className="size-4" />
+                        Delete search
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export default function LeadsIndex({ search, leads, error }: LeadsPageProps) {
     const { googleMaps } = usePage().props;
 
     const [selectedPlaceId, setSelectedPlaceId] = React.useState<string | null>(
@@ -112,13 +173,15 @@ export default function LeadsIndex({ filters, leads, error }: LeadsPageProps) {
     );
 
     const typesLabel =
-        filters.types.length > 0 ? filters.types.join(', ') : 'businesses';
-    const locationLabel = buildLocationLabel(filters);
+        search && search.types.length > 0
+            ? search.types.join(', ')
+            : 'businesses';
+    const locationLabel = search?.label ?? 'your selected area';
     const hasResults = leads.length > 0;
 
     return (
         <div className="landing-light-surface flex min-h-screen flex-col bg-slate-50 text-slate-900">
-            <Head title="Lead results" />
+            <Head title={search ? search.label : 'Lead results'} />
 
             {/* Header */}
             <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -164,6 +227,8 @@ export default function LeadsIndex({ filters, leads, error }: LeadsPageProps) {
                             <Download className="size-4" />
                             Export CSV
                         </Button>
+                        {search ? <DeleteSearchDialog search={search} /> : null}
+                        <HistoryLink />
                         <NewSearchLink />
                     </div>
                 </div>
@@ -182,7 +247,10 @@ export default function LeadsIndex({ filters, leads, error }: LeadsPageProps) {
                                 {error}
                             </p>
                         </div>
-                        <NewSearchLink className="shrink-0" />
+                        <div className="flex shrink-0 items-center gap-2">
+                            <HistoryLink />
+                            <NewSearchLink />
+                        </div>
                     </div>
                 </div>
             ) : null}
@@ -221,7 +289,7 @@ export default function LeadsIndex({ filters, leads, error }: LeadsPageProps) {
                     {selectedLead ? (
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                             <LeadDetailPanel
-                                key={selectedLead.placeId}
+                                key={selectedLead.id}
                                 lead={selectedLead}
                             />
                         </section>
@@ -241,7 +309,10 @@ export default function LeadsIndex({ filters, leads, error }: LeadsPageProps) {
                             {locationLabel}. Try a broader search area or
                             different business types.
                         </p>
-                        <NewSearchLink className="mt-5" />
+                        <div className="mt-5 flex items-center gap-2">
+                            <HistoryLink />
+                            <NewSearchLink />
+                        </div>
                     </div>
                 </main>
             ) : null}

@@ -3,6 +3,7 @@ import { Bookmark, Globe2, UserRound } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { dashboard, login } from '@/routes';
+import searches from '@/routes/searches';
 
 export function BrandHeader() {
     const { auth } = usePage().props;
@@ -21,13 +22,15 @@ export function BrandHeader() {
 
             <div className="flex items-center gap-2">
                 <Button
-                    type="button"
+                    asChild
                     variant="outline"
                     size="icon"
                     aria-label="Saved searches"
                     className="size-9 rounded-full border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 >
-                    <Bookmark />
+                    <Link href={searches.index.url()}>
+                        <Bookmark />
+                    </Link>
                 </Button>
                 <Button
                     asChild

@@ -5,7 +5,29 @@ export interface LeadReview {
     time: string;
 }
 
+export interface LeadSocial {
+    label: string;
+    url: string;
+}
+
+export interface LeadEmail {
+    subject: string;
+    body: string;
+}
+
+export interface LeadAnalysis {
+    strengths: string[];
+    painPoints: string[];
+    reviewInsights: string[];
+    /**
+     * Present on a fresh `analyze` response. The persisted `aiAnalysis` prop
+     * does not carry the email (it lives behind a re-analyze), so it is optional.
+     */
+    email?: LeadEmail;
+}
+
 export interface Lead {
+    id: number;
     placeId: string;
     name: string;
     address: string | null;
@@ -21,13 +43,21 @@ export interface Lead {
     businessStatus: string | null;
     openNow: boolean | null;
     reviews?: LeadReview[];
+    socials?: LeadSocial[];
+    emails?: string[];
+    extraPhones?: string[];
+    openingHours?: string[] | null;
+    editorialSummary?: string | null;
+    aiAnalysis?: LeadAnalysis | null;
+    aiTone?: string | null;
 }
 
-export interface LeadAnalysis {
-    strengths: string[];
-    painPoints: string[];
-    reviewInsights: string[];
-    email: { subject: string; body: string };
+export interface SavedSearch {
+    id: number;
+    label: string;
+    types: string[];
+    count: number;
+    createdAt: string;
 }
 
 export interface LeadFilters {
@@ -36,8 +66,5 @@ export interface LeadFilters {
     region?: string;
     province?: string;
     city?: string;
-    business?: boolean;
-    enriched?: boolean;
-    reviews?: boolean;
     volume?: number;
 }
